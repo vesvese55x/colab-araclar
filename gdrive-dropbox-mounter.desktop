@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Gdrive-Dropbox Mounter
+Exec=bash ~/Documents/gdrive-dropbox-mounter
+Icon=~/Documents/drive-vs-dropbox.jpg
+Terminal=true
+Categories=Utility;
