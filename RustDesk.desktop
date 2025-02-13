@@ -1,9 +1,0 @@
-[Desktop Entry]
-Name=RustDesk
-Comment=Remote Desktop Application
-Exec=/usr/bin/rustdesk
-Icon=/usr/share/icons/hicolor/256x256/apps/rustdesk.png
-Terminal=false
-Type=Application
-Categories=Network;RemoteAccess;
-StartupNotify=true

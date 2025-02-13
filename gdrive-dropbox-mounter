@@ -1,0 +1,17 @@
+#!/bin/bash
+
+echo "Hangi servisi mount etmek istiyorsunuz?"
+echo "1) Google Drive"
+echo "2) Dropbox"
+read -p "Seçiminizi yapın (1/2): " choice
+
+if [[ "$choice" == "1" ]]; then
+    echo "Google Drive başlatılıyor..."
+    /opt/google/drive
+elif [[ "$choice" == "2" ]]; then
+    echo "Dropbox mount ediliyor..."
+    nohup rclone mount dropbox: /root/dropbox --allow-other --vfs-cache-mode writes > /dev/null 2>&1 &
+    echo "Dropbox arka planda mount edildi."
+else
+    echo "Geçersiz seçim! Lütfen 1 veya 2 girin."
+fi
