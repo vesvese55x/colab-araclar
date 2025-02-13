@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Brave Browser
+Exec=/usr/bin/brave-browser
+Icon=/usr/share/icons/hicolor/256x256/apps/brave-browser.png
+Terminal=false
+Categories=Network;WebBrowser;
+StartupNotify=true
