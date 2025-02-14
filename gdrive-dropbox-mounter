@@ -14,17 +14,8 @@ while true; do
     elif [[ "$choice" == "2" ]]; then
         echo "Dropbox mount ediliyor (Mounting Dropbox...)"
         
-        # Dropbox için yetkilendirme işlemi yapılacak
-        echo "Dropbox için yetkilendirme linki oluşturuluyor (Generating Dropbox authorization URL)..."
-        rclone config reconnect dropbox:
-        
-        # Kullanıcıdan yetkilendirme URL'sini alması gerektiğini belirtelim
-        echo "Yetkilendirme URL'si terminalde görünecek. Lütfen URL'yi açın ve onay kodunu girin."
-        
-        # Dropbox'ı mount etmek için gerekli dizini oluşturuyoruz
+        # Dropbox'ı mount etmek için direkt rclone komutunu kullanıyoruz
         mkdir -p ~/dropbox
-        
-        # Dropbox'ı mount ediyoruz
         nohup rclone mount dropbox: ~/dropbox --vfs-cache-mode writes &> /root/dropbox-mount.log &
         
         # Arka planda çalışmaya başlaması için biraz bekleyebiliriz.
