@@ -10,8 +10,19 @@ if [[ "$choice" == "1" ]]; then
     /opt/google/drive/drive
 elif [[ "$choice" == "2" ]]; then
     echo "Dropbox mount ediliyor (Mounting Dropbox...)"
-    nohup rclone mount dropbox: /root/dropbox --allow-other --vfs-cache-mode writes > /dev/null 2>&1 &
+    
+    # İlk olarak, rclone config ile Dropbox için yetkilendirme işlemi yapılacak
+    rclone config reconnect dropbox: 
+    
+    # Dropbox'ı arka planda mount etmek için rclone mount komutunu kullanıyoruz.
+    # rclone mount, çalıştırıldığı terminale bağlıdır, bu yüzden terminali açacağız.
+    nohup rclone mount dropbox: /root/dropbox --allow-other --vfs-cache-mode writes &> /root/dropbox-mount.log &
+    
+    # Arka planda çalışmaya başlaması için biraz bekleyebiliriz.
+    sleep 2
+    
     echo "Dropbox mount edildi (Dropbox has been mounted)"
+    echo "Log dosyasına bakabilirsiniz: /root/dropbox-mount.log"
 else
     echo "Geçersiz seçim! Lütfen 1 veya 2 girin (Invalid selection! Please enter 1 or 2)"
 fi
