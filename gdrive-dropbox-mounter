@@ -1,35 +1,94 @@
 #!/bin/bash
 
 # Türkçe ve İngilizce yönergeler
-echo "Lütfen mount etmek istediğiniz servisi seçin / Please select the service you want to mount:"
-echo "1) Google Drive"
-echo "2) Dropbox"
-read -p "Seçiminiz (1/2) / Your choice (1/2): " choice
+function display_menu() {
+    echo "Lütfen mount etmek istediğiniz servisi seçin / Please select the service you want to mount:"
+    echo "1) Google Drive"
+    echo "2) Dropbox"
+    echo "3) Çıkış / Exit"
+}
 
-if [ "$choice" == "1" ]; then
-    # Google Drive seçildi
-    echo "Google Drive'ı mount etmeyi seçtiniz / You have chosen to mount Google Drive."
-    echo "Arkaplanda /opt/google/drive/drive dosyası çalıştırılıyor / Running /opt/google/drive/drive in the background..."
-    nohup /opt/google/drive/drive > /dev/null 2>&1 &
-    echo "Mount işlemi tamamlandı / Mounting process completed."
-elif [ "$choice" == "2" ]; then
-    # Dropbox seçildi
-    echo "Dropbox'u mount etmeyi seçtiniz / You have chosen to mount Dropbox."
-    echo "rclone config ile otomatik ayarlar yapılıyor / Configuring rclone automatically..."
+function mount_google_drive() {
+    echo "Google Drive mount işlemi başlatılıyor / Starting Google Drive mount process..."
     
-    # rclone config otomatik ayarları
-    rclone config create dropbox dropbox > /dev/null 2>&1
+    # Rclone konfigürasyon dosyasının yolu
+    RCLONE_CONFIG="$HOME/.config/rclone/rclone.conf"
     
-    echo "Lütfen aşağıdaki URL'yi tarayıcınızda açın ve yetkilendirme işlemini gerçekleştirin / Please open the following URL in your browser and complete the authorization:"
-    rclone authorize "dropbox"
+    # Rclone konfigürasyon dosyası yoksa oluştur
+    mkdir -p "$(dirname "$RCLONE_CONFIG")"
+    touch "$RCLONE_CONFIG"
     
-    echo "Yetkilendirme tamamlandı / Authorization completed."
-    echo "Dropbox mount ediliyor / Mounting Dropbox..."
+    # Rclone ile Google Drive konfigürasyonu oluştur
+    echo "Google Drive konfigürasyonu oluşturuluyor / Creating Google Drive configuration..."
+    rclone config create gdrive drive
+    
+    # Yetkilendirme bağlantısını aç ve kodu bekle
+    echo "Lütfen tarayıcınızda açılan bağlantıyı kullanarak Google hesabınızı yetkilendirin ve yetkilendirme kodunu girin / Please open the link in your browser to authorize your Google account and enter the authorization code."
+    rclone config reconnect gdrive:
+    
+    # Team Drive (Shared Drive) seçimini Rclone'a bırak
+    echo "Team Drive (Shared Drive) seçimi yapılıyor / Selecting Team Drive (Shared Drive)..."
+    rclone config update gdrive:
+    
+    # Mount işlemi için klasör oluştur
+    mkdir -p ~/gdrive
+    
+    # Google Drive'ı mount et
+    echo "Google Drive ~/gdrive klasörüne mount ediliyor / Mounting Google Drive to ~/gdrive..."
+    rclone mount gdrive: ~/gdrive --vfs-cache-mode writes &
+    
+    echo "Google Drive başarıyla ~/gdrive klasörüne mount edildi / Google Drive successfully mounted to ~/gdrive."
+}
+
+function mount_dropbox() {
+    echo "Dropbox mount işlemi başlatılıyor / Starting Dropbox mount process..."
+    
+    # Rclone konfigürasyon dosyasının yolu
+    RCLONE_CONFIG="$HOME/.config/rclone/rclone.conf"
+    
+    # Rclone konfigürasyon dosyası yoksa oluştur
+    mkdir -p "$(dirname "$RCLONE_CONFIG")"
+    touch "$RCLONE_CONFIG"
+    
+    # Rclone ile Dropbox konfigürasyonu oluştur
+    echo "Dropbox konfigürasyonu oluşturuluyor / Creating Dropbox configuration..."
+    rclone config create dropbox dropbox
+    
+    # Yetkilendirme bağlantısını aç ve kodu bekle
+    echo "Lütfen tarayıcınızda açılan bağlantıyı kullanarak Dropbox hesabınızı yetkilendirin ve yetkilendirme kodunu girin / Please open the link in your browser to authorize your Dropbox account and enter the authorization code."
+    rclone config reconnect dropbox:
+    
+    # Mount işlemi için klasör oluştur
     mkdir -p ~/dropbox
+    
+    # Dropbox'ı mount et
+    echo "Dropbox ~/dropbox klasörüne mount ediliyor / Mounting Dropbox to ~/dropbox..."
     rclone mount dropbox: ~/dropbox --vfs-cache-mode writes &
-    echo "Mount işlemi tamamlandı / Mounting process completed."
-else
-    echo "Geçersiz seçim / Invalid choice."
-fi
+    
+    echo "Dropbox başarıyla ~/dropbox klasörüne mount edildi / Dropbox successfully mounted to ~/dropbox."
+}
 
-echo "Ana menüye dönülüyor / Returning to main menu..."
+# Ana döngü
+while true; do
+    display_menu
+    read -p "Seçiminizi girin / Enter your choice (1/2/3): " choice
+    
+    case $choice in
+        1)
+            mount_google_drive
+            ;;
+        2)
+            mount_dropbox
+            ;;
+        3)
+            echo "Çıkış yapılıyor / Exiting..."
+            exit 0
+            ;;
+        *)
+            echo "Geçersiz seçim / Invalid choice. Lütfen tekrar deneyin / Please try again."
+            ;;
+    esac
+    
+    echo "Mount işlemi tamamlandı. Ana menüye dönülüyor / Mount process completed. Returning to main menu..."
+    echo
+done
