@@ -1,28 +1,37 @@
 #!/bin/bash
 
-echo "Hangi servisi mount etmek istiyorsunuz? (Which service would you like to mount?)"
-echo "1) Google Drive"
-echo "2) Dropbox"
-read -p "Seçiminizi yapın (Please make your selection) (1/2): " choice
+while true; do
+    echo "Hangi servisi mount etmek istiyorsunuz? (Which service would you like to mount?)"
+    echo "1) Google Drive"
+    echo "2) Dropbox"
+    read -p "Seçiminizi yapın (Please make your selection) (1/2): " choice
 
-if [[ "$choice" == "1" ]]; then
-    echo "Google Drive başlatılıyor (Starting Google Drive)"
-    /opt/google/drive/drive
-elif [[ "$choice" == "2" ]]; then
-    echo "Dropbox mount ediliyor (Mounting Dropbox...)"
-    
-    # İlk olarak, rclone config ile Dropbox için yetkilendirme işlemi yapılacak
-    rclone config reconnect dropbox: 
-    
-    # Dropbox'ı arka planda mount etmek için rclone mount komutunu kullanıyoruz.
-    # rclone mount, çalıştırıldığı terminale bağlıdır, bu yüzden terminali açacağız.
-    nohup rclone mount dropbox: /root/dropbox --allow-other --vfs-cache-mode writes &> /root/dropbox-mount.log &
-    
-    # Arka planda çalışmaya başlaması için biraz bekleyebiliriz.
-    sleep 2
-    
-    echo "Dropbox mount edildi (Dropbox has been mounted)"
-    echo "Log dosyasına bakabilirsiniz: /root/dropbox-mount.log"
-else
-    echo "Geçersiz seçim! Lütfen 1 veya 2 girin (Invalid selection! Please enter 1 or 2)"
-fi
+    if [[ "$choice" == "1" ]]; then
+        echo "Google Drive başlatılıyor (Starting Google Drive)"
+        # Google Drive'ı başlatırken çıktı gösterilmesin
+        /opt/google/drive/drive > /dev/null 2>&1
+        echo "Google Drive mount işlemi tamamlandı."
+    elif [[ "$choice" == "2" ]]; then
+        echo "Dropbox mount ediliyor (Mounting Dropbox...)"
+        
+        # Dropbox için yetkilendirme işlemi yapılacak
+        echo "Dropbox için yetkilendirme linki oluşturuluyor (Generating Dropbox authorization URL)..."
+        rclone config reconnect dropbox:
+        
+        # Kullanıcıdan yetkilendirme URL'sini alması gerektiğini belirtelim
+        echo "Yetkilendirme URL'si terminalde görünecek. Lütfen URL'yi açın ve onay kodunu girin."
+        
+        # Dropbox'ı mount etmek için gerekli dizini oluşturuyoruz
+        mkdir -p ~/dropbox
+        
+        # Dropbox'ı mount ediyoruz
+        nohup rclone mount dropbox: ~/dropbox --vfs-cache-mode writes &> /root/dropbox-mount.log &
+        
+        # Arka planda çalışmaya başlaması için biraz bekleyebiliriz.
+        sleep 2
+        
+        echo "Dropbox mount işlemi tamamlandı."
+    else
+        echo "Geçersiz seçim! Lütfen 1 veya 2 girin (Invalid selection! Please enter 1 or 2)"
+    fi
+done
