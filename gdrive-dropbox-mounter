@@ -1,36 +1,35 @@
 #!/bin/bash
 
-while true; do
-    echo "Hangi servisi mount etmek istiyorsunuz? (Which service would you like to mount?)"
-    echo "1) Google Drive"
-    echo "2) Dropbox"
-    read -p "Seçiminizi yapın (Please make your selection) (1/2): " choice
+# Türkçe ve İngilizce yönergeler
+echo "Lütfen mount etmek istediğiniz servisi seçin / Please select the service you want to mount:"
+echo "1) Google Drive"
+echo "2) Dropbox"
+read -p "Seçiminiz (1/2) / Your choice (1/2): " choice
 
-    if [[ "$choice" == "1" ]]; then
-        echo "Google Drive başlatılıyor (Starting Google Drive)"
-        # Google Drive'ı başlatırken çıktı gösterilmesin
-        /opt/google/drive/drive > /dev/null 2>&1
-        echo "Google Drive mount işlemi tamamlandı."
-    elif [[ "$choice" == "2" ]]; then
-        echo "Dropbox mount ediliyor (Mounting Dropbox...)"
-        
-        # Dropbox için yetkilendirme işlemi yapılacak
-        echo "Dropbox için yetkilendirme linki oluşturuluyor (Generating Dropbox authorization URL)..."
-        rclone config reconnect dropbox:
-        
-        # Kullanıcıdan yetkilendirme URL'sini alması gerektiğini belirtelim
-        echo "Yetkilendirme URL'si terminalde görünecek. Lütfen URL'yi açın ve onay kodunu girin."
-        
-        # Dropbox'ı mount etmek için gerekli dizini oluşturuyoruz
-        mkdir -p ~/dropbox
-        
-        # Dropbox'ı mount ediyoruz
-        nohup rclone mount dropbox: ~/dropbox --vfs-cache-mode writes &> /root/dropbox-mount.log &
-        
-        # Arka planda çalışmaya başlaması için biraz bekleyebiliriz.
-        sleep 2
-        
-        echo "Dropbox mount işlemi tamamlandı."
-    else
-        echo "Geçersiz seçim! Lütfen 1 veya 2 girin (Invalid selection! Please enter 1 or 2)"
-    fi
+if [ "$choice" == "1" ]; then
+    # Google Drive seçildi
+    echo "Google Drive'ı mount etmeyi seçtiniz / You have chosen to mount Google Drive."
+    echo "Arkaplanda /opt/google/drive/drive dosyası çalıştırılıyor / Running /opt/google/drive/drive in the background..."
+    nohup /opt/google/drive/drive > /dev/null 2>&1 &
+    echo "Mount işlemi tamamlandı / Mounting process completed."
+elif [ "$choice" == "2" ]; then
+    # Dropbox seçildi
+    echo "Dropbox'u mount etmeyi seçtiniz / You have chosen to mount Dropbox."
+    echo "rclone config ile otomatik ayarlar yapılıyor / Configuring rclone automatically..."
+    
+    # rclone config otomatik ayarları
+    rclone config create dropbox dropbox > /dev/null 2>&1
+    
+    echo "Lütfen aşağıdaki URL'yi tarayıcınızda açın ve yetkilendirme işlemini gerçekleştirin / Please open the following URL in your browser and complete the authorization:"
+    rclone authorize "dropbox"
+    
+    echo "Yetkilendirme tamamlandı / Authorization completed."
+    echo "Dropbox mount ediliyor / Mounting Dropbox..."
+    mkdir -p ~/dropbox
+    rclone mount dropbox: ~/dropbox --vfs-cache-mode writes &
+    echo "Mount işlemi tamamlandı / Mounting process completed."
+else
+    echo "Geçersiz seçim / Invalid choice."
+fi
+
+echo "Ana menüye dönülüyor / Returning to main menu..."
