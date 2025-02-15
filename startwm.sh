@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# XFCE başlat
+startxfce4 &
+
 # XFCE oturumu başladıktan sonra masaüstü arka planını değiştirmek için bekle
 (
 
@@ -11,9 +14,6 @@
         xfconf-query -c xfce4-desktop -p "$workspace" -s /tmp/resim.jpg
     done
 ) &
-
-# XFCE başlat
-startxfce4 &
 
 # RustDesk başlat
 rustdesk &
