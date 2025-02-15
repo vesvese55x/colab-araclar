@@ -14,5 +14,3 @@ sleep 3
 # Masaüstü arka planını değiştir
 (wget -O /tmp/resim.jpg https://i.ibb.co/JFWSj6Cc/resim.jpg && xfconf-query -c xfce4-desktop -p /xfce4-desktop/background/last-image -s /tmp/resim.jpg) &
 
-# İşlemi bitir
-exec /bin/sh /etc/X11/Xsession
