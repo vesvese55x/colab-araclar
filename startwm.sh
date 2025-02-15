@@ -16,7 +16,6 @@ for workspace in $(xfconf-query -c xfce4-desktop -l | grep "workspace.*/last-ima
 
 # RustDesk başlat
 rustdesk &
-setxkbmap tr &
 
 # Oturumun sonlandırılmasını engelle
 wait
