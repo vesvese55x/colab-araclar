@@ -1,14 +1,9 @@
 #!/bin/bash
-
-# XFCE başlat
+rustdesk &
 startxfce4 &
 
-# RustDesk başlat
-rustdesk &
-
-# XFCE oturumu başladıktan sonra masaüstü arka planını değiştirmek için bekle
 (
-    sleep 2  # XFCE'nin tam açılmasını bekler
+    sleep 5  # XFCE'nin tam açılmasını bekler
 
     # Arka plan resmini indir
     wget -q -O /tmp/resim.jpg https://i.ibb.co/JFWSj6Cc/resim.jpg
@@ -19,5 +14,4 @@ rustdesk &
     done
 ) &
 
-# Oturumun sonlandırılmasını engelle
 wait
