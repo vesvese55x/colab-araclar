@@ -6,6 +6,7 @@ startxfce4 &
 # XFCE oturumu başladıktan sonra masaüstü arka planını değiştirmek için bekle
 (
 sleep 5
+setxkbmap tr
     # Arka plan resmini indir
     wget -q -O /tmp/resim.jpg https://i.ibb.co/JFWSj6Cc/resim.jpg
 
