@@ -1,18 +1,22 @@
 #!/bin/bash
-# XRDP için XFCE4 başlatma, klavye düzenini ayarlama ve masaüstü resmi değiştirme komutları
 
-# XFCE4 ve RustDesk başlat
-startxfce4 &
+# RustDesk başlat
 rustdesk &
 
-# Klavye düzenini Türkçe yap
-setxkbmap tr
+# XFCE başlat
+startxfce4 &
 
-# Birkaç saniye bekleyerek oturumun tam açılmasını sağla
-sleep 3
+# XFCE oturumu başladıktan sonra masaüstü arka planını değiştirmek için bekle
+(
+    sleep 5  # XFCE'nin tam açılmasını bekler
 
-# Masaüstü arka planını değiştir
-(wget -O /tmp/resim.jpg https://i.ibb.co/JFWSj6Cc/resim.jpg && xfconf-query -c xfce4-desktop -p /xfce4-desktop/background/last-image -s /tmp/resim.jpg) &
+    # Arka plan resmini indir
+    wget -q -O /tmp/resim.jpg https://i.ibb.co/JFWSj6Cc/resim.jpg
 
+xfconf-query -c xfce4-desktop -p /xfce4-desktop/background/last-image -s /tmp/resim.jpg
+) &
+
+# Oturumun sonlandırılmasını engelle
 wait
+
 
