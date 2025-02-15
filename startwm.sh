@@ -1,9 +1,5 @@
 #!/bin/bash
-# XRDP için XFCE4 başlatma, klavye düzenini ayarlama ve masaüstü yapılandırma komutları
-
-# Ortam değişkenlerini yükle
-export LANG=C.UTF-8
-export DISPLAY=:0
+# XRDP için XFCE4 başlatma, klavye düzenini ayarlama ve masaüstü resmi değiştirme komutları
 
 # XFCE4 ve RustDesk başlat
 startxfce4 &
@@ -16,10 +12,10 @@ setxkbmap tr
 wget -O /tmp/resim.jpg https://i.ibb.co/JFWSj6Cc/resim.jpg
 
 # Birkaç saniye bekleyerek oturumun tam açılmasını sağla
-sleep 5
+sleep 3
 
 # Masaüstü arka planını değiştir
-xfconf-query -c xfce4-desktop -l | grep "last-image" | xargs -I{} xfconf-query -c xfce4-desktop -p "{}" -s "/tmp/resim.jpg"
+xfconf-query -c xfce4-desktop -p /xfce4-desktop/background/last-image -s /tmp/resim.jpg
 
-# İşlemleri bitir ve oturumun çalışmasını sağla
+# İşlemi bitir
 exec /bin/sh /etc/X11/Xsession
