@@ -15,9 +15,6 @@ sleep 5
     done
 ) &
 
-# Klavye düzenini Türkçe yap
-setxkbmap tr
-
 # RustDesk başlat
 rustdesk &
 
