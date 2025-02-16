@@ -82,13 +82,13 @@ xfconf-query -c xfce4-desktop -l | grep "last-image" | xargs -I{} xfconf-query -
 xfconf-query -c xfce4-desktop -p "/backdrop/screen0/monitor0/last-image-style" -s "3"
 xfconf-query -c xfce4-desktop -p "/backdrop/screen0/monitor1/last-image-style" -s "3"
 xfconf-query -c xfce4-desktop -p "/backdrop/workspace0/last-image-style" -s "3"
-xfconf-query -c xfce4-desktop -p "/backdrop/workspace1/last-image-style" -s "3"' > ~/Desktop/wallpaper-changer && chmod +x ~/Desktop/wallpaper-changer
+xfconf-query -c xfce4-desktop -p "/backdrop/workspace1/last-image-style" -s "3"' > ~/Desktop/wallpaper-changer.sh && chmod +x ~/Desktop/wallpaper-changer.sh
 
 
 # Starting XFCE4
 systemctl restart gdm3
 startxfce4 &>/dev/null &
-bash ~/Desktop/wallpaper-changer &
+bash ~/Desktop/wallpaper-changer.sh &
 
 sleep 2  
 
