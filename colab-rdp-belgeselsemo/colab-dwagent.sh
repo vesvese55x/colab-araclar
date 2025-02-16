@@ -66,7 +66,7 @@ wget -q -O ~/Documents/drive-vs-dropbox.jpg https://www.pcworld.com/wp-content/u
 wget -q -O ~/Desktop/gdrive-dropbox-mounter.desktop  https://raw.githubusercontent.com/vesvese55x/colab-araclar/refs/heads/main/gdrive-dropbox-mounter.desktop
 chmod +x ~/Desktop/*.desktop
 
-# Installing Dbus-GDM-Video Dummy
+# Installing Dbus-GDM3-Video Dummy
 apt install -y dbus-x11 gdm3 xserver-xorg-video-dummy > /dev/null 2>&1
 
 # Starting Dbus
