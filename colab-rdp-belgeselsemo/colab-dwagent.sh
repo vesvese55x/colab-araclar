@@ -3,8 +3,8 @@ sed -i 's/\r$//' "$0"
 
 # Started Message
 echo -e "\n\n\e[1;36m============================= İŞLEMLER BAŞLADI (BELGESELSEMO.COM.TR) =============================\e[0m"
-echo -e "\n\e[1;31mGerekli işlemler yapılıyor. Lütfen bekleyiniz...\e[0m"
-echo -e "\e[1;31mPerforming necessary operations. Please wait...\e[0m"
+echo -e "\n\e[1;31mGerekli işlemler yapılıyor. Lütfen bekleyiniz... (Yaklaşık 7-8 dk sonra GÖREV TAMAMLANDI yazısı görünecektir...) \e[0m"
+echo -e "\e[1;31mPerforming necessary operations. Please wait... (After approximately 7-8 minutes, the MISSION COMPLETED message will appear...) \e[0m"
 echo -e "\n\e[1;36m============================= STARTING PROCESSES (BELGESELSEMO.COM.TR) =============================\e[0m"
 
 # Set root password
@@ -94,7 +94,7 @@ sleep 2
 
 clear
 echo -e "\n\n\e[1;36m============================= GÖREV TAMAMLANDI (BELGESELSEMO.COM.TR) =============================\e[0m"
-echo -e "\nİşleminiz başarıyla tamamlanmıştır. Sol üstteki ⠿ simgesine tıklayın. Sonra \e[31m🖥️ (Ekran)\e[0m simgesine tıklayarak Sanal Makine'nize bağlanabilirsiniz..."
+echo -e "\nİşleminiz başarıyla tamamlanmıştır. Sol üstteki ⠿ simgesine tıklayın. Sonra \e[31m🖥️ (Ekran)\e[0m simgesine tıklayarak Sanal Makine'nize bağlanabilirsiniz... "
 echo -e "Your operation has been completed successfully. Click the ⠿ icon in the top left. Then click the \e[31m🖥️ (Screen)\e[0m icon to connect to your Virtual Machine..."
 echo -e "\n\e[1;36m============================= MISSION COMPLETED (BELGESELSEMO.COM.TR) =============================\e[0m"
 
