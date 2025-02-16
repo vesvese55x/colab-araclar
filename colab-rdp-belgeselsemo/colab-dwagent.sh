@@ -79,16 +79,16 @@ bash -c 'echo -e "Section \"Monitor\"\n    Identifier \"Monitor0\"\nEndSection\n
 echo '#!/bin/bash
 wget -O /tmp/resim.jpg https://i.ibb.co/JFWSj6Cc/resim.jpg
 xfconf-query -c xfce4-desktop -l | grep "last-image" | xargs -I{} xfconf-query -c xfce4-desktop -p "{}" -s "/tmp/resim.jpg"
-xfconf-query -c xfce4-desktop -p "/backdrop/screen0/monitor0/last-image-style" -s "1"
-xfconf-query -c xfce4-desktop -p "/backdrop/screen0/monitor1/last-image-style" -s "1"
-xfconf-query -c xfce4-desktop -p "/backdrop/workspace0/last-image-style" -s "1"
-xfconf-query -c xfce4-desktop -p "/backdrop/workspace1/last-image-style" -s "1"' > ~/Desktop/wallpaper-changer && chmod +x ~/Desktop/wallpaper-changer
+xfconf-query -c xfce4-desktop -p "/backdrop/screen0/monitor0/last-image-style" -s "3"
+xfconf-query -c xfce4-desktop -p "/backdrop/screen0/monitor1/last-image-style" -s "3"
+xfconf-query -c xfce4-desktop -p "/backdrop/workspace0/last-image-style" -s "3"
+xfconf-query -c xfce4-desktop -p "/backdrop/workspace1/last-image-style" -s "3"' > ~/Desktop/wallpaper-changer && chmod +x ~/Desktop/wallpaper-changer
 
 
 # Starting XFCE4
 systemctl restart gdm3
 startxfce4 &>/dev/null &
-bash ~/Desktop/wallpaper-changer.sh &
+bash ~/Desktop/wallpaper-changer &
 
 sleep 2  
 
