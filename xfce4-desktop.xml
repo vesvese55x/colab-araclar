@@ -1,24 +1,32 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<xfce-desktop>
-    <background>
-        <property name="image-path" type="string" value="file:///tmp/resim.jpg"/>
-        <property name="image-style" type="int" value="3"/>
-        <property name="color1" type="string" value="#000000"/>
-        <property name="color2" type="string" value="#000000"/>
-        <property name="shaded" type="bool" value="false"/>
-        <property name="tiling" type="bool" value="false"/>
-        <property name="align" type="int" value="0"/>
-        <property name="zoom" type="int" value="1"/>
-        <property name="centered" type="bool" value="true"/>
-    </background>
-
-    <icon-sizes>
-        <property name="panel-icon-size" type="int" value="48"/>
-    </icon-sizes>
-
-    <screen> <!-- Bu bölüm ekran ayarları içindir. -->
-        <property name="workspaces" type="int" value="4"/>
-        <property name="background-color" type="string" value="#000000"/>
-        <property name="desktop-icons" type="bool" value="true"/>
-    </screen>
-</xfce-desktop>
+This XML file does not appear to have any style information associated with it. The document tree is shown below.
+<channel name="xfce4-desktop" version="1.0">
+<property name="backdrop" type="empty">
+<property name="screen0" type="empty">
+<property name="monitornxoutput0" type="empty">
+<property name="workspace0" type="empty">
+<property name="color-style" type="int" value="0"/>
+<property name="image-style" type="int" value="3"/>
+<property name="last-image" type="string" value="/tmp/resim.jpg"/>
+</property>
+<property name="workspace1" type="empty">
+<property name="color-style" type="int" value="0"/>
+<property name="image-style" type="int" value="3"/>
+<property name="last-image" type="string" value="/tmp/resim.jpg"/>
+</property>
+<property name="workspace2" type="empty">
+<property name="color-style" type="int" value="0"/>
+<property name="image-style" type="int" value="3"/>
+<property name="last-image" type="string" value="/tmp/resim.jpg"/>
+</property>
+<property name="workspace3" type="empty">
+<property name="color-style" type="int" value="0"/>
+<property name="image-style" type="int" value="3"/>
+<property name="last-image" type="string" value="/tmp/resim.jpg"/>
+</property>
+</property>
+<property name="monitor0" type="empty">
+<property name="image-style" type="int" value="3"/>
+</property>
+</property>
+</property>
+</channel>
