@@ -7,12 +7,7 @@ startxfce4 &
 (
 sleep 5
     # Arka plan resmini indir
-    wget -q -O /tmp/resim.jpg https://i.ibb.co/JFWSj6Cc/resim.jpg
-
-    # Bütün çalışma alanları için arka planı değiştir
-    for workspace in $(xfconf-query -c xfce4-desktop -l | grep "workspace.*/last-image"); do
-        xfconf-query -c xfce4-desktop -p "$workspace" -s "/tmp/resim.jpg"
-    done
+    wget -O /tmp/resim.jpg https://i.ibb.co/JFWSj6Cc/resim.jpg && xfconf-query -c xfce4-desktop -l | grep "last-image" | xargs -I{} xfconf-query -c xfce4-desktop -p "{}" -s "/tmp/resim.jpg" && xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/image-style -n -t int -s 3
 ) &
 
 # RustDesk başlat
