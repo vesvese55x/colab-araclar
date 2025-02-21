@@ -8,7 +8,7 @@ echo -e "\n\e[1;36mPerforming necessary operations. Please wait... (After approx
 echo -e "\n\e[1;33;44m========================================================== \e[1;37mSTARTING PROCESSES (BELGESELSEMO.COM.TR)\e[1;33;44m ==========================================================\e[0m"
 
 # Set root password
-echo "root:root" | sudo chpasswd > /dev/null 2>&1
+echo "root:belgeselsemo" | sudo chpasswd > /dev/null 2>&1
 
 # Install XFCE4 Desktop and necessary packages
 sudo apt update > /dev/null 2>&1
@@ -64,6 +64,7 @@ cp /usr/share/applications/lxterminal.desktop ~/Desktop
 wget -q -O ~/Documents/gdrive-dropbox-mounter  https://raw.githubusercontent.com/vesvese55x/colab-araclar/refs/heads/main/gdrive-dropbox-mounter
 wget -q -O ~/Documents/drive-vs-dropbox.jpg https://www.pcworld.com/wp-content/uploads/2023/04/drive-vs-dropbox.jpg
 wget -q -O ~/Desktop/gdrive-dropbox-mounter.desktop  https://raw.githubusercontent.com/vesvese55x/colab-araclar/refs/heads/main/gdrive-dropbox-mounter.desktop
+wget -q -O ~/Desktop/wallpaper-changer.sh https://github.com/vesvese55x/colab-araclar/raw/refs/heads/main/walpaper-changer.sh && chmod +x ~/Desktop/wallpaper-changer.sh
 chmod +x ~/Desktop/*.desktop
 
 # Installing Dbus-GDM3-Video Dummy
@@ -75,15 +76,6 @@ service dbus start > /dev/null 2>&1
 
 # Connection configuration
 bash -c 'echo -e "Section \"Monitor\"\n    Identifier \"Monitor0\"\nEndSection\n\nSection \"Device\"\n    Identifier \"Device0\"\n    Driver \"dummy\"\n    VideoRam 256000\nEndSection\n\nSection \"Screen\"\n    Identifier \"Screen0\"\n    Device \"Device0\"\n    Monitor \"Monitor0\"\n    SubSection \"Display\"\n        Modes \"1920x1080\"\n    EndSubSection\nEndSection" > /etc/X11/xorg.conf.d/10-monitor.conf' > /dev/null 2>&1
-
-echo '#!/bin/bash
-wget -O /tmp/resim.jpg https://i.ibb.co/JFWSj6Cc/resim.jpg
-xfconf-query -c xfce4-desktop -l | grep "last-image" | xargs -I{} xfconf-query -c xfce4-desktop -p "{}" -s "/tmp/resim.jpg"
-xfconf-query -c xfce4-desktop -p "/backdrop/screen0/monitor0/last-image-style" -s "3"
-xfconf-query -c xfce4-desktop -p "/backdrop/screen0/monitor1/last-image-style" -s "3"
-xfconf-query -c xfce4-desktop -p "/backdrop/workspace0/last-image-style" -s "3"
-xfconf-query -c xfce4-desktop -p "/backdrop/workspace1/last-image-style" -s "3"' > ~/Desktop/wallpaper-changer.sh && chmod +x ~/Desktop/wallpaper-changer.sh
-
 
 # Starting XFCE4
 systemctl restart gdm3
