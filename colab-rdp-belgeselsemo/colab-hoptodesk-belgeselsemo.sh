@@ -41,15 +41,6 @@ sudo apt install -y ./TeraBox_1.9.1_amd64.deb > /dev/null 2>&1
 sudo apt --fix-broken install > /dev/null 2>&1
 pip install streamlink > /dev/null 2>&1
 
-wget https://github.com/rustdesk/rustdesk/releases/download/1.3.7/rustdesk-1.3.7-x86_64.deb > /dev/null 2>&1
-sudo apt install -y ./rustdesk-1.3.7-x86_64.deb > /dev/null 2>&1
-sudo apt --fix-broken install > /dev/null 2>&1
-
-# NoMachine Yükle
-wget https://download.nomachine.com/download/8.16/Linux/nomachine_8.16.1_1_amd64.deb > /dev/null 2>&1
-dpkg -i nomachine_8.16.1_1_amd64.deb > /dev/null 2>&1
-apt --fix-broken install -y > /dev/null 2>&1
-
 # Preparing the Desktop Icons & Changign the Desktop Wallpaper
 sudo rm -rf ~/Desktop && mkdir ~/Desktop
 sudo rm -rf ~/Documents && mkdir ~/Documents
