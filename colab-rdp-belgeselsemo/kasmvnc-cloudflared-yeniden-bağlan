@@ -1,0 +1,74 @@
+#!/bin/bash
+
+INFO='\033[1;36m'
+YES='\033[1;32m'
+NO='\033[1;31m'
+RESET='\033[0m'
+
+VNC_USER="root"
+PASS="belgeselsemo"
+
+echo -e "${INFO}🔄 KasmVNC + Cloudflared yeniden başlatılıyor...${RESET}"
+
+# 1. Eski süreçleri temizle
+pkill -f Xvfb > /dev/null 2>&1
+pkill -f kasmvnc > /dev/null 2>&1
+pkill -f cloudflared > /dev/null 2>&1
+rm -rf ~/.vnc
+rm -f /tmp/.X*
+mkdir -p ~/.vnc
+
+# 2. Şifre dosyasını tekrar oluştur
+echo -e "${INFO}🔑 VNC şifresi ayarlanıyor...${RESET}"
+echo -e "${PASS}\n${PASS}\n" | kasmvncpasswd -u "$VNC_USER" -w -o
+chmod 600 /root/.vnc/passwd 2>/dev/null
+
+# 3. SSL'siz config dosyası
+cat <<EOF > /root/.vnc/kasmvnc.yaml
+network:
+  ssl:
+    require_ssl: false
+  udp:
+    public_ip: 127.0.0.1
+EOF
+
+# 4. KasmVNC'yi başlat (HTTP modunda)
+echo -e "${INFO}🟢 KasmVNC başlatılıyor (port 5901 + websocket 8444)...${RESET}"
+vncserver -interface 127.0.0.1 -port 5901 -websocketPort 8444 -select-de xfce > kasm.log 2>&1 &
+sleep 8
+
+# 5. Port kontrolü
+if ! ss -tuln | grep -q ':8444\b'; then
+    echo -e "${NO}❌ KasmVNC 8444 portunu açamadı! Log:${RESET}"
+    tail -n 15 kasm.log
+    exit 1
+fi
+
+# 6. Cloudflared kur (gerekirse)
+if ! command -v cloudflared &> /dev/null; then
+    echo -e "${INFO}📦 Cloudflared yükleniyor...${RESET}"
+    wget -q -O cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+    sudo dpkg -i cloudflared.deb > /dev/null 2>&1
+    sudo apt --fix-broken install -y > /dev/null 2>&1
+fi
+
+# 7. Cloudflared başlat
+echo -e "${INFO}☁️ Cloudflared tüneli açılıyor...${RESET}"
+cloudflared tunnel --url http://localhost:8444 > cloudflared.log 2>&1 &
+sleep 12
+
+CF_URL=$(grep -o 'https://.*\.trycloudflare\.com' cloudflared.log | head -n1)
+
+# 8. Sonuç
+clear
+if [ -z "$CF_URL" ]; then
+    echo -e "${NO}❌ Tünel başarısız! Cloudflared log:${RESET}"
+    tail -n 10 cloudflared.log
+else
+    echo -e "${YES}======================================================${RESET}"
+    echo -e "${YES}           ✅ KASMVNC + CLOUDFLARE AKTİF!             ${RESET}"
+    echo -e "${YES}======================================================${RESET}"
+    echo -e "${INFO}🔗 Public URL: ${YES}$CF_URL${RESET}"
+    echo -e "${INFO}👤 Kullanıcı: root | Şifre: belgeselsemo${RESET}"
+    echo -e "\n${INFO}💡 Tarayıcıda bu linkle XFCE masaüstüne erişebilirsin.${RESET}"
+fi
