@@ -1,94 +1,1318 @@
 #!/bin/bash
 
-# Türkçe ve İngilizce yönergeler
-function display_menu() {
-    echo "Lütfen mount etmek istediğiniz servisi seçin / Please select the service you want to mount:"
-    echo "1) Google Drive"
-    echo "2) Dropbox"
-    echo "3) Çıkış / Exit"
+# ============================================================
+#  RCLONE MOUNT MANAGER - Gelişmiş Sürüm / Advanced Version
+#  Google Drive & Dropbox Çoklu Hesap Yöneticisi
+#  Multi-Account Mount Manager
+# ============================================================
+
+# Renkler / Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+# Log dosyası
+LOG_FILE="$HOME/.rclone_mount_manager.log"
+
+# ============================================================
+# YARDIMCI FONKSİYONLAR / HELPER FUNCTIONS
+# ============================================================
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
 }
 
-function mount_google_drive() {
-    echo "Google Drive mount işlemi başlatılıyor / Starting Google Drive mount process..."
-    
-    # Rclone konfigürasyon dosyasının yolu
-    RCLONE_CONFIG="$HOME/.config/rclone/rclone.conf"
-    
-    # Rclone konfigürasyon dosyası yoksa oluştur
-    mkdir -p "$(dirname "$RCLONE_CONFIG")"
-    touch "$RCLONE_CONFIG"
-    
-    # Rclone ile Google Drive konfigürasyonu oluştur
-    echo "Google Drive konfigürasyonu oluşturuluyor / Creating Google Drive configuration..."
-    rclone config create gdrive drive
-    
-    # Yetkilendirme bağlantısını aç ve kodu bekle
-    echo "Lütfen tarayıcınızda açılan bağlantıyı kullanarak Google hesabınızı yetkilendirin ve yetkilendirme kodunu girin / Please open the link in your browser to authorize your Google account and enter the authorization code."
-    rclone config reconnect gdrive:
-    
-    # Team Drive (Shared Drive) seçimini Rclone'a bırak
-    echo "Team Drive (Shared Drive) seçimi yapılıyor / Selecting Team Drive (Shared Drive)..."
-    rclone config update gdrive:
-    
-    # Mount işlemi için klasör oluştur
-    mkdir -p ~/gdrive
-    
-    # Google Drive'ı mount et
-    echo "Google Drive ~/gdrive klasörüne mount ediliyor / Mounting Google Drive to ~/gdrive..."
-    rclone mount gdrive: ~/gdrive --vfs-cache-mode writes &
-    
-    echo "Google Drive başarıyla ~/gdrive klasörüne mount edildi / Google Drive successfully mounted to ~/gdrive."
+print_banner() {
+    clear
+    echo -e "${CYAN}${BOLD}"
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║          RCLONE ÇOKLU HESAP MOUNT YÖNETİCİSİ               ║"
+    echo "║          RCLONE MULTI-ACCOUNT MOUNT MANAGER                 ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+    echo -e "${NC}"
 }
 
-function mount_dropbox() {
-    echo "Dropbox mount işlemi başlatılıyor / Starting Dropbox mount process..."
-    
-    # Rclone konfigürasyon dosyasının yolu
-    RCLONE_CONFIG="$HOME/.config/rclone/rclone.conf"
-    
-    # Rclone konfigürasyon dosyası yoksa oluştur
-    mkdir -p "$(dirname "$RCLONE_CONFIG")"
-    touch "$RCLONE_CONFIG"
-    
-    # Rclone ile Dropbox konfigürasyonu oluştur
-    echo "Dropbox konfigürasyonu oluşturuluyor / Creating Dropbox configuration..."
-    rclone config create dropbox dropbox
-    
-    # Yetkilendirme bağlantısını aç ve kodu bekle
-    echo "Lütfen tarayıcınızda açılan bağlantıyı kullanarak Dropbox hesabınızı yetkilendirin ve yetkilendirme kodunu girin / Please open the link in your browser to authorize your Dropbox account and enter the authorization code."
-    rclone config reconnect dropbox:
-    
-    # Mount işlemi için klasör oluştur
-    mkdir -p ~/dropbox
-    
-    # Dropbox'ı mount et
-    echo "Dropbox ~/dropbox klasörüne mount ediliyor / Mounting Dropbox to ~/dropbox..."
-    rclone mount dropbox: ~/dropbox --vfs-cache-mode writes &
-    
-    echo "Dropbox başarıyla ~/dropbox klasörüne mount edildi / Dropbox successfully mounted to ~/dropbox."
+print_separator() {
+    echo -e "${BLUE}──────────────────────────────────────────────────────────────${NC}"
 }
 
-# Ana döngü
-while true; do
-    display_menu
-    read -p "Seçiminizi girin / Enter your choice (1/2/3): " choice
-    
-    case $choice in
+press_enter() {
+    echo ""
+    read -p "$(echo -e "${YELLOW}[ENTER] Ana menüye dön / Return to main menu...${NC}")" dummy
+}
+
+# Rclone kurulu mu kontrol et / Check if rclone is installed
+check_rclone() {
+    if ! command -v rclone &> /dev/null; then
+        echo -e "${RED}[HATA] rclone kurulu değil! / [ERROR] rclone is not installed!${NC}"
+        echo ""
+        echo -e "${YELLOW}Kurulum için / For installation:${NC}"
+        echo "  Linux/macOS: curl https://rclone.org/install.sh | sudo bash"
+        echo "  veya / or  : sudo apt install rclone  (Debian/Ubuntu)"
+        echo "  veya / or  : sudo dnf install rclone  (Fedora/RHEL)"
+        echo "  veya / or  : brew install rclone       (macOS)"
+        echo ""
+        exit 1
+    fi
+}
+
+# FUSE kontrol et ve gerekirse kur / Check FUSE and install if needed
+check_fuse_and_fix() {
+    # fusermount3 veya fusermount var mı? / Check for fusermount3 or fusermount
+    local fuse_ok=0
+
+    if command -v fusermount3 &>/dev/null; then
+        fuse_ok=1
+    elif command -v fusermount &>/dev/null; then
+        # fusermount var ama fusermount3 yok → symlink oluştur
+        fuse_ok=1
+        if [ ! -e /usr/local/bin/fusermount3 ] && [ ! -e /usr/bin/fusermount3 ]; then
+            echo -e "${YELLOW}[FIX] fusermount3 bulunamadı, fusermount'a symlink oluşturuluyor...${NC}"
+            echo -e "${YELLOW}[FIX] fusermount3 not found, creating symlink to fusermount...${NC}"
+            local fm_path
+            fm_path=$(command -v fusermount)
+            if ln -sf "$fm_path" /usr/local/bin/fusermount3 2>/dev/null; then
+                echo -e "${GREEN}✅ /usr/local/bin/fusermount3 → $fm_path symlink oluşturuldu.${NC}"
+                log "Created symlink: /usr/local/bin/fusermount3 → $fm_path"
+            else
+                # sudo ile dene
+                if sudo ln -sf "$fm_path" /usr/local/bin/fusermount3 2>/dev/null; then
+                    echo -e "${GREEN}✅ symlink oluşturuldu (sudo ile / with sudo).${NC}"
+                    log "Created symlink (sudo): /usr/local/bin/fusermount3 → $fm_path"
+                else
+                    echo -e "${YELLOW}⚠️  Symlink oluşturulamadı, devam ediliyor...${NC}"
+                fi
+            fi
+        fi
+    fi
+
+    if [ "$fuse_ok" -eq 0 ]; then
+        echo -e "${YELLOW}╔══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${YELLOW}║  FUSE kurulu değil! / FUSE is not installed!             ║${NC}"
+        echo -e "${YELLOW}╚══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+
+        # Dağıtımı tespit et ve otomatik kur
+        if command -v apt-get &>/dev/null; then
+            echo -e "${CYAN}Debian/Ubuntu tespit edildi. FUSE kuruluyor...${NC}"
+            echo -e "${CYAN}Debian/Ubuntu detected. Installing FUSE...${NC}"
+            sudo apt-get update -qq && sudo apt-get install -y fuse3 fuse 2>/dev/null || \
+            sudo apt-get install -y fuse 2>/dev/null
+        elif command -v dnf &>/dev/null; then
+            echo -e "${CYAN}Fedora/RHEL tespit edildi. FUSE kuruluyor...${NC}"
+            sudo dnf install -y fuse fuse3 2>/dev/null
+        elif command -v yum &>/dev/null; then
+            echo -e "${CYAN}CentOS/RHEL tespit edildi. FUSE kuruluyor...${NC}"
+            sudo yum install -y fuse 2>/dev/null
+        elif command -v pacman &>/dev/null; then
+            echo -e "${CYAN}Arch Linux tespit edildi. FUSE kuruluyor...${NC}"
+            sudo pacman -S --noconfirm fuse3 fuse2 2>/dev/null
+        elif command -v brew &>/dev/null; then
+            echo -e "${CYAN}macOS tespit edildi. macFUSE kuruluyor...${NC}"
+            brew install --cask macfuse 2>/dev/null
+        else
+            echo -e "${RED}Dağıtım tespit edilemedi. Manuel kurulum gerekli:${NC}"
+            echo "  Debian/Ubuntu : sudo apt install fuse3"
+            echo "  Fedora/RHEL   : sudo dnf install fuse3"
+            echo "  Arch          : sudo pacman -S fuse3"
+            echo "  macOS         : brew install --cask macfuse"
+        fi
+
+        # Kurulum sonrası tekrar kontrol
+        if command -v fusermount3 &>/dev/null || command -v fusermount &>/dev/null; then
+            echo -e "${GREEN}✅ FUSE başarıyla kuruldu / FUSE installed successfully.${NC}"
+            sleep 1
+        else
+            echo -e "${RED}❌ FUSE kurulumu başarısız. Lütfen manuel kurun.${NC}"
+            echo -e "${RED}❌ FUSE installation failed. Please install manually.${NC}"
+            echo ""
+            read -p "Yine de devam etmek ister misiniz? / Continue anyway? [y/N]: " cont
+            [[ "$cont" =~ ^[Yy]$ ]] || exit 1
+        fi
+    fi
+
+    # /dev/fuse erişim kontrolü
+    if [ ! -c /dev/fuse ] 2>/dev/null; then
+        echo -e "${YELLOW}⚠️  /dev/fuse mevcut değil. Docker/container ortamında mısınız?${NC}"
+        echo -e "${YELLOW}⚠️  /dev/fuse not found. Are you in a Docker/container environment?${NC}"
+        echo -e "${YELLOW}    Docker için: docker run --device /dev/fuse --cap-add SYS_ADMIN ...${NC}"
+    fi
+
+    # FUSE grubuna kullanıcıyı ekle (gerekirse)
+    if getent group fuse &>/dev/null; then
+        if ! groups "$USER" 2>/dev/null | grep -q fuse; then
+            echo -e "${YELLOW}[FIX] Kullanıcı 'fuse' grubuna ekleniyor / Adding user to 'fuse' group...${NC}"
+            sudo usermod -aG fuse "$USER" 2>/dev/null && \
+                echo -e "${GREEN}  ✅ Eklendi (yeni oturumda aktif olacak) / Added (will be active in new session)${NC}"
+        fi
+    fi
+}
+
+# ============================================================
+# HESAP LİSTELEME FONKSİYONLARI / ACCOUNT LISTING FUNCTIONS
+# ============================================================
+
+# Mevcut tüm gdrive hesaplarını listele / List all existing gdrive accounts
+list_gdrive_accounts() {
+    rclone listremotes 2>/dev/null | grep -E '^gdrive[0-9]+:$' | sed 's/:$//' | sort -V
+}
+
+# Mevcut tüm dropbox hesaplarını listele / List all existing dropbox accounts
+list_dropbox_accounts() {
+    rclone listremotes 2>/dev/null | grep -E '^dropbox[0-9]+:$' | sed 's/:$//' | sort -V
+}
+
+# Sonraki gdrive indeksini bul / Find next gdrive index
+get_next_gdrive_index() {
+    local max=0
+    for remote in $(list_gdrive_accounts); do
+        local num="${remote//gdrive/}"
+        if [[ "$num" =~ ^[0-9]+$ ]] && [ "$num" -gt "$max" ]; then
+            max=$num
+        fi
+    done
+    echo $((max + 1))
+}
+
+# Sonraki dropbox indeksini bul / Find next dropbox index
+get_next_dropbox_index() {
+    local max=0
+    for remote in $(list_dropbox_accounts); do
+        local num="${remote//dropbox/}"
+        if [[ "$num" =~ ^[0-9]+$ ]] && [ "$num" -gt "$max" ]; then
+            max=$num
+        fi
+    done
+    echo $((max + 1))
+}
+
+# ============================================================
+# MOUNT DURUM KONTROLÜ / MOUNT STATUS CHECK
+# ============================================================
+
+is_mounted() {
+    local mount_point="$1"
+    if mountpoint -q "$mount_point" 2>/dev/null; then
+        return 0
+    elif mount | grep -q " $mount_point "; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+show_mount_status() {
+    print_banner
+    echo -e "${BOLD}📊 MOUNT DURUMU / MOUNT STATUS${NC}"
+    print_separator
+
+    local gdrive_accounts
+    mapfile -t gdrive_accounts < <(list_gdrive_accounts)
+    local dropbox_accounts
+    mapfile -t dropbox_accounts < <(list_dropbox_accounts)
+
+    if [ ${#gdrive_accounts[@]} -eq 0 ] && [ ${#dropbox_accounts[@]} -eq 0 ]; then
+        echo -e "${YELLOW}  Henüz hiç hesap eklenmemiş / No accounts added yet.${NC}"
+    fi
+
+    echo -e "\n${GREEN}${BOLD}📁 Google Drive Hesapları:${NC}"
+    if [ ${#gdrive_accounts[@]} -eq 0 ]; then
+        echo -e "  ${YELLOW}Kayıtlı hesap yok / No accounts registered${NC}"
+    else
+        for remote in "${gdrive_accounts[@]}"; do
+            local mount_point="$HOME/$remote"
+            if is_mounted "$mount_point"; then
+                echo -e "  ${GREEN}✅ $remote  →  $mount_point  [MOUNTED]${NC}"
+            else
+                echo -e "  ${RED}❌ $remote  →  $mount_point  [NOT MOUNTED]${NC}"
+            fi
+        done
+    fi
+
+    echo -e "\n${CYAN}${BOLD}📦 Dropbox Hesapları:${NC}"
+    if [ ${#dropbox_accounts[@]} -eq 0 ]; then
+        echo -e "  ${YELLOW}Kayıtlı hesap yok / No accounts registered${NC}"
+    else
+        for remote in "${dropbox_accounts[@]}"; do
+            local mount_point="$HOME/$remote"
+            if is_mounted "$mount_point"; then
+                echo -e "  ${GREEN}✅ $remote  →  $mount_point  [MOUNTED]${NC}"
+            else
+                echo -e "  ${RED}❌ $remote  →  $mount_point  [NOT MOUNTED]${NC}"
+            fi
+        done
+    fi
+
+    echo ""
+    print_separator
+
+    # Aktif rclone process'leri göster
+    local procs
+    procs=$(pgrep -a rclone 2>/dev/null | grep "rclone mount" || true)
+    if [ -n "$procs" ]; then
+        echo -e "\n${MAGENTA}${BOLD}⚙️  Aktif Rclone İşlemleri / Active Rclone Processes:${NC}"
+        while IFS= read -r line; do
+            echo -e "  ${MAGENTA}▸ $line${NC}"
+        done <<< "$procs"
+    fi
+    echo ""
+}
+
+# ============================================================
+# GOOGLE DRIVE FONKSİYONLARI / GOOGLE DRIVE FUNCTIONS
+# ============================================================
+
+add_gdrive_account() {
+    print_banner
+    echo -e "${GREEN}${BOLD}➕ YENİ GOOGLE DRIVE HESABI EKLE / ADD NEW GOOGLE DRIVE ACCOUNT${NC}"
+    print_separator
+
+    local index
+    index=$(get_next_gdrive_index)
+    local remote_name="gdrive${index}"
+    local mount_point="$HOME/$remote_name"
+
+    echo -e "${CYAN}Yeni hesap adı / New account name: ${BOLD}$remote_name${NC}"
+    echo -e "${CYAN}Mount noktası / Mount point: ${BOLD}$mount_point${NC}"
+    echo ""
+
+    # Opsiyonel: özel isim kullanmak ister misiniz?
+    read -p "$(echo -e "${YELLOW}Farklı bir isim kullanmak ister misiniz? (varsayılan: $remote_name) / Use a custom name? [y/N]: ${NC}")" use_custom
+    if [[ "$use_custom" =~ ^[Yy]$ ]]; then
+        while true; do
+            read -p "$(echo -e "${YELLOW}Hesap adı (sadece harf/rakam, boşluksuz) / Account name (letters/numbers only): ${NC}")" custom_name
+            if [[ "$custom_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+                if rclone listremotes 2>/dev/null | grep -q "^${custom_name}:$"; then
+                    echo -e "${RED}Bu isim zaten kullanımda / This name is already in use!${NC}"
+                else
+                    remote_name="$custom_name"
+                    mount_point="$HOME/$remote_name"
+                    break
+                fi
+            else
+                echo -e "${RED}Geçersiz isim. Sadece harf, rakam, tire ve alt çizgi kullanın.${NC}"
+                echo -e "${RED}Invalid name. Use only letters, numbers, hyphens, and underscores.${NC}"
+            fi
+        done
+    fi
+
+    print_separator
+    echo -e "${YELLOW}📌 Team/Shared Drive kullanmak istiyor musunuz?${NC}"
+    echo -e "${YELLOW}📌 Do you want to use a Team/Shared Drive?${NC}"
+    read -p "$(echo -e "${YELLOW}[y/N]: ${NC}")" use_team_drive
+
+    echo ""
+    echo -e "${GREEN}Rclone Google Drive konfigürasyonu başlatılıyor...${NC}"
+    echo -e "${GREEN}Starting rclone Google Drive configuration...${NC}"
+    echo ""
+
+    if [[ "$use_team_drive" =~ ^[Yy]$ ]]; then
+        # Team Drive ile konfigürasyon
+        echo -e "${CYAN}Not: Konfigürasyon sırasında 'team_drive' seçeneğini etkinleştirin.${NC}"
+        echo -e "${CYAN}Note: Enable the 'team_drive' option during configuration.${NC}"
+        echo ""
+        rclone config create "$remote_name" drive scope=drive
+        echo ""
+        echo -e "${YELLOW}Team Drive ID'nizi girin / Enter your Team Drive ID:${NC}"
+        echo -e "${YELLOW}(Google Drive'da Shared Drives > Drive URL'den alabilirsiniz)${NC}"
+        read -p "Team Drive ID: " team_drive_id
+        if [ -n "$team_drive_id" ]; then
+            rclone config update "$remote_name" team_drive="$team_drive_id" 2>/dev/null || true
+        fi
+    else
+        # Normal Drive konfigürasyonu
+        rclone config create "$remote_name" drive scope=drive
+    fi
+
+    echo ""
+    echo -e "${YELLOW}Hesabı yetkilendiriyorsunuz / Authorizing account...${NC}"
+    rclone config reconnect "${remote_name}:"
+
+    # Konfigürasyon başarılı mı kontrol et
+    if rclone listremotes 2>/dev/null | grep -q "^${remote_name}:$"; then
+        echo ""
+        echo -e "${GREEN}✅ $remote_name başarıyla yapılandırıldı / successfully configured!${NC}"
+        log "Google Drive account added: $remote_name"
+
+        # Hemen mount etmek ister misiniz?
+        read -p "$(echo -e "${YELLOW}Şimdi mount etmek ister misiniz? / Mount now? [Y/n]: ${NC}")" mount_now
+        if [[ ! "$mount_now" =~ ^[Nn]$ ]]; then
+            mount_gdrive_single "$remote_name"
+        fi
+    else
+        echo -e "${RED}❌ Konfigürasyon başarısız / Configuration failed!${NC}"
+        log "ERROR: Failed to add Google Drive account: $remote_name"
+    fi
+}
+
+do_rclone_mount() {
+    local remote_name="$1"
+    local mount_point="$2"
+
+    # Ortak mount parametreleri
+    local MOUNT_OPTS=(
+        --vfs-cache-mode writes
+        --vfs-cache-max-age 24h
+        --vfs-cache-max-size 1G
+        --dir-cache-time 30m
+        --poll-interval 30s
+        --allow-non-empty
+        --no-modtime
+        --transfers 4
+        --log-file "$LOG_FILE"
+        --log-level INFO
+    )
+
+    # fusermount3 yoksa FUSE binary yolunu elle ver
+    local fuse_bin=""
+    if command -v fusermount3 &>/dev/null; then
+        fuse_bin=$(command -v fusermount3)
+    elif command -v fusermount &>/dev/null; then
+        fuse_bin=$(command -v fusermount)
+    fi
+
+    # RCLONE_FUSE_PROGRAM env değişkeni ile fusermount3 yerine fusermount kullandır
+    if [ -n "$fuse_bin" ]; then
+        export RCLONE_FUSE_PROGRAM="$fuse_bin"
+    fi
+
+    # Yöntem 1: --daemon ile dene
+    echo -e "  ${CYAN}[1/3] --daemon modu deneniyor...${NC}"
+    rclone mount "${remote_name}:" "$mount_point" "${MOUNT_OPTS[@]}" --daemon 2>>"$LOG_FILE"
+    sleep 3
+    if is_mounted "$mount_point"; then
+        return 0
+    fi
+
+    # Yöntem 2: nohup ile arka plana al
+    echo -e "  ${CYAN}[2/3] nohup modu deneniyor...${NC}"
+    nohup rclone mount "${remote_name}:" "$mount_point" "${MOUNT_OPTS[@]}" \
+        >> "$LOG_FILE" 2>&1 &
+    disown $!
+    sleep 4
+    if is_mounted "$mount_point"; then
+        return 0
+    fi
+
+    # Yöntem 3: setsid ile izole et
+    echo -e "  ${CYAN}[3/3] setsid modu deneniyor...${NC}"
+    setsid rclone mount "${remote_name}:" "$mount_point" "${MOUNT_OPTS[@]}" \
+        >> "$LOG_FILE" 2>&1 &
+    disown $!
+    sleep 4
+    if is_mounted "$mount_point"; then
+        return 0
+    fi
+
+    return 1
+}
+
+mount_gdrive_single() {
+    local remote_name="$1"
+    local mount_point="$HOME/$remote_name"
+
+    if is_mounted "$mount_point"; then
+        echo -e "${YELLOW}⚠️  $remote_name zaten mount edilmiş / already mounted: $mount_point${NC}"
+        return
+    fi
+
+    mkdir -p "$mount_point"
+    echo -e "${GREEN}$remote_name → $mount_point mount ediliyor / mounting...${NC}"
+
+    if do_rclone_mount "$remote_name" "$mount_point"; then
+        echo -e "${GREEN}✅ $remote_name başarıyla mount edildi → $mount_point${NC}"
+        log "Mounted: $remote_name → $mount_point"
+    else
+        echo -e "${RED}❌ Mount başarısız / Mount failed: $remote_name${NC}"
+        echo -e "${YELLOW}Olası nedenler / Possible causes:${NC}"
+        echo -e "  ${YELLOW}• FUSE kurulu değil → sudo apt install fuse3${NC}"
+        echo -e "  ${YELLOW}• /dev/fuse erişimi yok → Container'da --device /dev/fuse gerekli${NC}"
+        echo -e "  ${YELLOW}• rclone yetkilendirmesi eksik → 'rclone config reconnect ${remote_name}:'${NC}"
+        echo -e "  ${YELLOW}• Log: $LOG_FILE${NC}"
+        log "ERROR: Failed to mount $remote_name → $mount_point (all methods failed)"
+    fi
+}
+
+mount_all_gdrive() {
+    print_banner
+    echo -e "${GREEN}${BOLD}📁 TÜM GOOGLE DRIVE HESAPLARINI MOUNT ET${NC}"
+    print_separator
+
+    local accounts
+    mapfile -t accounts < <(list_gdrive_accounts)
+
+    if [ ${#accounts[@]} -eq 0 ]; then
+        echo -e "${YELLOW}Kayıtlı Google Drive hesabı yok. Önce hesap ekleyin.${NC}"
+        echo -e "${YELLOW}No registered Google Drive accounts. Please add an account first.${NC}"
+        press_enter
+        return
+    fi
+
+    echo -e "${CYAN}${#accounts[@]} hesap bulundu / ${#accounts[@]} account(s) found${NC}"
+    echo ""
+
+    for remote in "${accounts[@]}"; do
+        mount_gdrive_single "$remote"
+    done
+
+    echo ""
+    echo -e "${GREEN}${BOLD}✅ Tüm Google Drive işlemleri tamamlandı / All Google Drive operations completed.${NC}"
+    press_enter
+}
+
+select_and_mount_gdrive() {
+    print_banner
+    echo -e "${GREEN}${BOLD}📁 GOOGLE DRIVE HESABI SEÇ VE MOUNT ET${NC}"
+    print_separator
+
+    local accounts
+    mapfile -t accounts < <(list_gdrive_accounts)
+
+    if [ ${#accounts[@]} -eq 0 ]; then
+        echo -e "${YELLOW}Kayıtlı Google Drive hesabı yok.${NC}"
+        press_enter
+        return
+    fi
+
+    echo -e "${CYAN}Mevcut hesaplar / Available accounts:${NC}"
+    echo ""
+    for i in "${!accounts[@]}"; do
+        local remote="${accounts[$i]}"
+        local mount_point="$HOME/$remote"
+        local status=""
+        if is_mounted "$mount_point"; then
+            status="${GREEN}[MOUNTED]${NC}"
+        else
+            status="${RED}[NOT MOUNTED]${NC}"
+        fi
+        echo -e "  ${BOLD}$((i+1)))${NC} $remote  $status"
+    done
+    echo -e "  ${BOLD}0)${NC} Geri / Back"
+    echo ""
+    read -p "$(echo -e "${YELLOW}Seçiminiz / Your choice: ${NC}")" choice
+
+    if [[ "$choice" == "0" ]]; then
+        return
+    fi
+
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#accounts[@]}" ]; then
+        local selected="${accounts[$((choice-1))]}"
+        echo ""
+        mount_gdrive_single "$selected"
+        press_enter
+    else
+        echo -e "${RED}Geçersiz seçim / Invalid choice${NC}"
+        press_enter
+    fi
+}
+
+# ============================================================
+# DROPBOX FONKSİYONLARI / DROPBOX FUNCTIONS
+# ============================================================
+
+add_dropbox_account() {
+    print_banner
+    echo -e "${CYAN}${BOLD}➕ YENİ DROPBOX HESABI EKLE / ADD NEW DROPBOX ACCOUNT${NC}"
+    print_separator
+
+    local index
+    index=$(get_next_dropbox_index)
+    local remote_name="dropbox${index}"
+    local mount_point="$HOME/$remote_name"
+
+    echo -e "${CYAN}Yeni hesap adı / New account name: ${BOLD}$remote_name${NC}"
+    echo -e "${CYAN}Mount noktası / Mount point: ${BOLD}$mount_point${NC}"
+    echo ""
+
+    read -p "$(echo -e "${YELLOW}Farklı bir isim kullanmak ister misiniz? (varsayılan: $remote_name) / Use a custom name? [y/N]: ${NC}")" use_custom
+    if [[ "$use_custom" =~ ^[Yy]$ ]]; then
+        while true; do
+            read -p "$(echo -e "${YELLOW}Hesap adı (sadece harf/rakam, boşluksuz) / Account name: ${NC}")" custom_name
+            if [[ "$custom_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+                if rclone listremotes 2>/dev/null | grep -q "^${custom_name}:$"; then
+                    echo -e "${RED}Bu isim zaten kullanımda / This name is already in use!${NC}"
+                else
+                    remote_name="$custom_name"
+                    mount_point="$HOME/$remote_name"
+                    break
+                fi
+            else
+                echo -e "${RED}Geçersiz isim / Invalid name.${NC}"
+            fi
+        done
+    fi
+
+    print_separator
+    echo -e "${GREEN}Rclone Dropbox konfigürasyonu başlatılıyor...${NC}"
+    echo -e "${GREEN}Starting rclone Dropbox configuration...${NC}"
+    echo ""
+
+    rclone config create "$remote_name" dropbox
+
+    echo ""
+    echo -e "${YELLOW}Hesabı yetkilendiriyorsunuz / Authorizing account...${NC}"
+    rclone config reconnect "${remote_name}:"
+
+    if rclone listremotes 2>/dev/null | grep -q "^${remote_name}:$"; then
+        echo ""
+        echo -e "${GREEN}✅ $remote_name başarıyla yapılandırıldı / successfully configured!${NC}"
+        log "Dropbox account added: $remote_name"
+
+        read -p "$(echo -e "${YELLOW}Şimdi mount etmek ister misiniz? / Mount now? [Y/n]: ${NC}")" mount_now
+        if [[ ! "$mount_now" =~ ^[Nn]$ ]]; then
+            mount_dropbox_single "$remote_name"
+        fi
+    else
+        echo -e "${RED}❌ Konfigürasyon başarısız / Configuration failed!${NC}"
+        log "ERROR: Failed to add Dropbox account: $remote_name"
+    fi
+}
+
+mount_dropbox_single() {
+    local remote_name="$1"
+    local mount_point="$HOME/$remote_name"
+
+    if is_mounted "$mount_point"; then
+        echo -e "${YELLOW}⚠️  $remote_name zaten mount edilmiş / already mounted: $mount_point${NC}"
+        return
+    fi
+
+    mkdir -p "$mount_point"
+    echo -e "${CYAN}$remote_name → $mount_point mount ediliyor / mounting...${NC}"
+
+    if do_rclone_mount "$remote_name" "$mount_point"; then
+        echo -e "${GREEN}✅ $remote_name başarıyla mount edildi → $mount_point${NC}"
+        log "Mounted: $remote_name → $mount_point"
+    else
+        echo -e "${RED}❌ Mount başarısız / Mount failed: $remote_name${NC}"
+        echo -e "${YELLOW}Olası nedenler / Possible causes:${NC}"
+        echo -e "  ${YELLOW}• FUSE kurulu değil → sudo apt install fuse3${NC}"
+        echo -e "  ${YELLOW}• /dev/fuse erişimi yok → Container'da --device /dev/fuse gerekli${NC}"
+        echo -e "  ${YELLOW}• rclone yetkilendirmesi eksik → 'rclone config reconnect ${remote_name}:'${NC}"
+        echo -e "  ${YELLOW}• Log: $LOG_FILE${NC}"
+        log "ERROR: Failed to mount $remote_name → $mount_point (all methods failed)"
+    fi
+}
+
+mount_all_dropbox() {
+    print_banner
+    echo -e "${CYAN}${BOLD}📦 TÜM DROPBOX HESAPLARINI MOUNT ET${NC}"
+    print_separator
+
+    local accounts
+    mapfile -t accounts < <(list_dropbox_accounts)
+
+    if [ ${#accounts[@]} -eq 0 ]; then
+        echo -e "${YELLOW}Kayıtlı Dropbox hesabı yok. Önce hesap ekleyin.${NC}"
+        echo -e "${YELLOW}No registered Dropbox accounts. Please add an account first.${NC}"
+        press_enter
+        return
+    fi
+
+    echo -e "${CYAN}${#accounts[@]} hesap bulundu / ${#accounts[@]} account(s) found${NC}"
+    echo ""
+
+    for remote in "${accounts[@]}"; do
+        mount_dropbox_single "$remote"
+    done
+
+    echo ""
+    echo -e "${CYAN}${BOLD}✅ Tüm Dropbox işlemleri tamamlandı / All Dropbox operations completed.${NC}"
+    press_enter
+}
+
+select_and_mount_dropbox() {
+    print_banner
+    echo -e "${CYAN}${BOLD}📦 DROPBOX HESABI SEÇ VE MOUNT ET${NC}"
+    print_separator
+
+    local accounts
+    mapfile -t accounts < <(list_dropbox_accounts)
+
+    if [ ${#accounts[@]} -eq 0 ]; then
+        echo -e "${YELLOW}Kayıtlı Dropbox hesabı yok.${NC}"
+        press_enter
+        return
+    fi
+
+    echo -e "${CYAN}Mevcut hesaplar / Available accounts:${NC}"
+    echo ""
+    for i in "${!accounts[@]}"; do
+        local remote="${accounts[$i]}"
+        local mount_point="$HOME/$remote"
+        local status=""
+        if is_mounted "$mount_point"; then
+            status="${GREEN}[MOUNTED]${NC}"
+        else
+            status="${RED}[NOT MOUNTED]${NC}"
+        fi
+        echo -e "  ${BOLD}$((i+1)))${NC} $remote  $status"
+    done
+    echo -e "  ${BOLD}0)${NC} Geri / Back"
+    echo ""
+    read -p "$(echo -e "${YELLOW}Seçiminiz / Your choice: ${NC}")" choice
+
+    if [[ "$choice" == "0" ]]; then
+        return
+    fi
+
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#accounts[@]}" ]; then
+        local selected="${accounts[$((choice-1))]}"
+        echo ""
+        mount_dropbox_single "$selected"
+        press_enter
+    else
+        echo -e "${RED}Geçersiz seçim / Invalid choice${NC}"
+        press_enter
+    fi
+}
+
+# ============================================================
+# HEPSİNİ MOUNT ET / MOUNT ALL
+# ============================================================
+
+mount_all() {
+    print_banner
+    echo -e "${MAGENTA}${BOLD}🚀 TÜM HESAPLARI MOUNT ET / MOUNT ALL ACCOUNTS${NC}"
+    print_separator
+
+    local gdrive_accounts
+    mapfile -t gdrive_accounts < <(list_gdrive_accounts)
+    local dropbox_accounts
+    mapfile -t dropbox_accounts < <(list_dropbox_accounts)
+    local total=$(( ${#gdrive_accounts[@]} + ${#dropbox_accounts[@]} ))
+
+    if [ "$total" -eq 0 ]; then
+        echo -e "${YELLOW}Henüz hiç hesap eklenmemiş / No accounts added yet.${NC}"
+        press_enter
+        return
+    fi
+
+    echo -e "${MAGENTA}Toplam $total hesap mount edilecek / $total account(s) will be mounted.${NC}"
+    echo ""
+
+    if [ ${#gdrive_accounts[@]} -gt 0 ]; then
+        echo -e "${GREEN}${BOLD}── Google Drive Hesapları ──${NC}"
+        for remote in "${gdrive_accounts[@]}"; do
+            mount_gdrive_single "$remote"
+        done
+        echo ""
+    fi
+
+    if [ ${#dropbox_accounts[@]} -gt 0 ]; then
+        echo -e "${CYAN}${BOLD}── Dropbox Hesapları ──${NC}"
+        for remote in "${dropbox_accounts[@]}"; do
+            mount_dropbox_single "$remote"
+        done
+        echo ""
+    fi
+
+    echo -e "${MAGENTA}${BOLD}✅ Tüm işlemler tamamlandı / All operations completed.${NC}"
+    press_enter
+}
+
+# ============================================================
+# UNMOUNT FONKSİYONLARI / UNMOUNT FUNCTIONS
+# ============================================================
+
+unmount_remote() {
+    local mount_point="$1"
+    local remote_name="$2"
+
+    if ! is_mounted "$mount_point"; then
+        echo -e "${YELLOW}⚠️  $remote_name zaten unmount edilmiş / already unmounted${NC}"
+        return
+    fi
+
+    echo -e "${YELLOW}$remote_name unmount ediliyor / unmounting...${NC}"
+
+    # Fusermount ile dene / Try with fusermount
+    if command -v fusermount &> /dev/null; then
+        fusermount -u "$mount_point" 2>/dev/null && {
+            echo -e "${GREEN}✅ $remote_name başarıyla unmount edildi / successfully unmounted${NC}"
+            log "Unmounted: $remote_name → $mount_point"
+            return
+        }
+    fi
+
+    # umount ile dene / Try with umount
+    umount "$mount_point" 2>/dev/null && {
+        echo -e "${GREEN}✅ $remote_name başarıyla unmount edildi / successfully unmounted${NC}"
+        log "Unmounted: $remote_name → $mount_point"
+        return
+    }
+
+    # Zorla unmount / Force unmount
+    echo -e "${YELLOW}Zorla unmount deneniyor / Trying force unmount...${NC}"
+    fusermount -uz "$mount_point" 2>/dev/null || umount -l "$mount_point" 2>/dev/null && {
+        echo -e "${GREEN}✅ $remote_name zorla unmount edildi / force unmounted${NC}"
+        log "Force unmounted: $remote_name → $mount_point"
+        return
+    }
+
+    echo -e "${RED}❌ Unmount başarısız / Unmount failed for $remote_name${NC}"
+    log "ERROR: Failed to unmount $remote_name → $mount_point"
+}
+
+unmount_menu() {
+    print_banner
+    echo -e "${YELLOW}${BOLD}⏏  UNMOUNT MENÜSÜ / UNMOUNT MENU${NC}"
+    print_separator
+
+    local all_accounts=()
+    local all_types=()
+
+    for remote in $(list_gdrive_accounts); do
+        all_accounts+=("$remote")
+        all_types+=("gdrive")
+    done
+    for remote in $(list_dropbox_accounts); do
+        all_accounts+=("$remote")
+        all_types+=("dropbox")
+    done
+
+    if [ ${#all_accounts[@]} -eq 0 ]; then
+        echo -e "${YELLOW}Kayıtlı hesap yok / No registered accounts.${NC}"
+        press_enter
+        return
+    fi
+
+    echo -e "${CYAN}Hesaplar / Accounts:${NC}"
+    echo ""
+    for i in "${!all_accounts[@]}"; do
+        local remote="${all_accounts[$i]}"
+        local mount_point="$HOME/$remote"
+        local status=""
+        if is_mounted "$mount_point"; then
+            status="${GREEN}[MOUNTED]${NC}"
+        else
+            status="${RED}[NOT MOUNTED]${NC}"
+        fi
+        echo -e "  ${BOLD}$((i+1)))${NC} $remote  $status"
+    done
+    echo ""
+    echo -e "  ${BOLD}A)${NC} Tümünü unmount et / Unmount all"
+    echo -e "  ${BOLD}0)${NC} Geri / Back"
+    echo ""
+    read -p "$(echo -e "${YELLOW}Seçiminiz / Your choice: ${NC}")" choice
+
+    if [[ "$choice" == "0" ]]; then
+        return
+    fi
+
+    if [[ "${choice^^}" == "A" ]]; then
+        echo ""
+        for i in "${!all_accounts[@]}"; do
+            local remote="${all_accounts[$i]}"
+            unmount_remote "$HOME/$remote" "$remote"
+        done
+        press_enter
+        return
+    fi
+
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#all_accounts[@]}" ]; then
+        local selected="${all_accounts[$((choice-1))]}"
+        echo ""
+        unmount_remote "$HOME/$selected" "$selected"
+        press_enter
+    else
+        echo -e "${RED}Geçersiz seçim / Invalid choice${NC}"
+        press_enter
+    fi
+}
+
+# ============================================================
+# HESAP SİLME / DELETE ACCOUNT
+# ============================================================
+
+delete_account_menu() {
+    print_banner
+    echo -e "${RED}${BOLD}🗑️  HESAP SİL / DELETE ACCOUNT${NC}"
+    print_separator
+
+    local all_accounts=()
+    for remote in $(list_gdrive_accounts) $(list_dropbox_accounts); do
+        all_accounts+=("$remote")
+    done
+
+    if [ ${#all_accounts[@]} -eq 0 ]; then
+        echo -e "${YELLOW}Kayıtlı hesap yok / No registered accounts.${NC}"
+        press_enter
+        return
+    fi
+
+    echo -e "${CYAN}Hesaplar / Accounts:${NC}"
+    echo ""
+    for i in "${!all_accounts[@]}"; do
+        local remote="${all_accounts[$i]}"
+        local mount_point="$HOME/$remote"
+        local status=""
+        if is_mounted "$mount_point"; then
+            status="${GREEN}[MOUNTED]${NC}"
+        else
+            status="${RED}[NOT MOUNTED]${NC}"
+        fi
+        echo -e "  ${BOLD}$((i+1)))${NC} $remote  $status"
+    done
+    echo -e "  ${BOLD}0)${NC} Geri / Back"
+    echo ""
+    read -p "$(echo -e "${YELLOW}Silmek istediğiniz hesabı seçin / Select account to delete: ${NC}")" choice
+
+    if [[ "$choice" == "0" ]]; then
+        return
+    fi
+
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#all_accounts[@]}" ]; then
+        local selected="${all_accounts[$((choice-1))]}"
+        local mount_point="$HOME/$selected"
+
+        echo ""
+        echo -e "${RED}⚠️  UYARI: $selected hesabı silinecek!${NC}"
+        echo -e "${RED}⚠️  WARNING: $selected account will be deleted!${NC}"
+        read -p "$(echo -e "${RED}Emin misiniz? / Are you sure? [yes/no]: ${NC}")" confirm
+
+        if [[ "$confirm" == "yes" ]]; then
+            # Önce unmount et
+            if is_mounted "$mount_point"; then
+                unmount_remote "$mount_point" "$selected"
+            fi
+            # Rclone konfigürasyonundan sil
+            rclone config delete "$selected" 2>/dev/null
+            # Boş klasörü sil (dolu değilse)
+            rmdir "$mount_point" 2>/dev/null && echo -e "${GREEN}  Mount klasörü silindi / Mount directory removed.${NC}" || \
+                echo -e "${YELLOW}  Mount klasörü boş değil, silinmedi / Mount directory not empty, kept.${NC}"
+            echo -e "${GREEN}✅ $selected başarıyla silindi / successfully deleted.${NC}"
+            log "Deleted account: $selected"
+        else
+            echo -e "${YELLOW}İşlem iptal edildi / Operation cancelled.${NC}"
+        fi
+        press_enter
+    else
+        echo -e "${RED}Geçersiz seçim / Invalid choice${NC}"
+        press_enter
+    fi
+}
+
+# ============================================================
+# HESAPLARI LİSTELE / LIST ALL ACCOUNTS
+# ============================================================
+
+list_all_accounts() {
+    print_banner
+    echo -e "${BOLD}📋 KAYITLI TÜM HESAPLAR / ALL REGISTERED ACCOUNTS${NC}"
+    print_separator
+
+    echo -e "\n${GREEN}${BOLD}📁 Google Drive Hesapları:${NC}"
+    local gdrive_accounts
+    mapfile -t gdrive_accounts < <(list_gdrive_accounts)
+    if [ ${#gdrive_accounts[@]} -eq 0 ]; then
+        echo -e "  ${YELLOW}Yok / None${NC}"
+    else
+        for remote in "${gdrive_accounts[@]}"; do
+            local mount_point="$HOME/$remote"
+            echo -e "  ${BOLD}▸${NC} $remote  →  $mount_point"
+        done
+    fi
+
+    echo -e "\n${CYAN}${BOLD}📦 Dropbox Hesapları:${NC}"
+    local dropbox_accounts
+    mapfile -t dropbox_accounts < <(list_dropbox_accounts)
+    if [ ${#dropbox_accounts[@]} -eq 0 ]; then
+        echo -e "  ${YELLOW}Yok / None${NC}"
+    else
+        for remote in "${dropbox_accounts[@]}"; do
+            local mount_point="$HOME/$remote"
+            echo -e "  ${BOLD}▸${NC} $remote  →  $mount_point"
+        done
+    fi
+
+    echo ""
+    print_separator
+    echo -e "${BOLD}Toplam / Total: $((${#gdrive_accounts[@]} + ${#dropbox_accounts[@]})) hesap / account(s)${NC}"
+    echo ""
+    press_enter
+}
+
+# ============================================================
+# FUSE TANI ARACI / FUSE DIAGNOSTIC TOOL
+# ============================================================
+
+fuse_diagnostics() {
+    print_banner
+    echo -e "${MAGENTA}${BOLD}🔍 FUSE TANI ARACI / FUSE DIAGNOSTICS${NC}"
+    print_separator
+    echo ""
+
+    # fusermount3 kontrolü
+    echo -e "${BOLD}1. fusermount3 kontrolü:${NC}"
+    if command -v fusermount3 &>/dev/null; then
+        echo -e "  ${GREEN}✅ fusermount3 bulundu: $(command -v fusermount3)${NC}"
+    else
+        echo -e "  ${RED}❌ fusermount3 bulunamadı${NC}"
+    fi
+
+    echo -e "${BOLD}2. fusermount kontrolü:${NC}"
+    if command -v fusermount &>/dev/null; then
+        echo -e "  ${GREEN}✅ fusermount bulundu: $(command -v fusermount)${NC}"
+    else
+        echo -e "  ${RED}❌ fusermount bulunamadı${NC}"
+    fi
+
+    echo -e "${BOLD}3. /dev/fuse kontrolü:${NC}"
+    if [ -c /dev/fuse ]; then
+        echo -e "  ${GREEN}✅ /dev/fuse mevcut${NC}"
+        ls -la /dev/fuse
+    else
+        echo -e "  ${RED}❌ /dev/fuse bulunamadı (container ortamı olabilir)${NC}"
+    fi
+
+    echo -e "${BOLD}4. fuse kernel modülü:${NC}"
+    if lsmod 2>/dev/null | grep -q fuse; then
+        echo -e "  ${GREEN}✅ fuse modülü yüklü${NC}"
+    else
+        echo -e "  ${YELLOW}⚠️  fuse modülü görünmüyor (modprobe fuse deneyin)${NC}"
+    fi
+
+    echo -e "${BOLD}5. Kullanıcı grupları:${NC}"
+    echo -e "  Gruplar: $(groups 2>/dev/null)"
+
+    echo -e "${BOLD}6. rclone sürümü:${NC}"
+    rclone --version 2>/dev/null | head -1
+
+    echo ""
+    print_separator
+    echo -e "${BOLD}🛠️  OTOMATİK DÜZELTME MENÜSÜ / AUTO-FIX MENU${NC}"
+    echo ""
+    echo -e "  ${BOLD}1)${NC} fusermount → fusermount3 symlink oluştur (root/sudo gerekmez)"
+    echo -e "  ${BOLD}2)${NC} fuse3 paketini kur (sudo gerekir)"
+    echo -e "  ${BOLD}3)${NC} fuse modülünü yükle (sudo modprobe fuse)"
+    echo -e "  ${BOLD}4)${NC} /dev/fuse oluştur (sudo, container için)"
+    echo -e "  ${BOLD}0)${NC} Geri / Back"
+    echo ""
+    read -p "$(echo -e "${YELLOW}Seçiminiz / Choice: ${NC}")" fix_choice
+
+    case "$fix_choice" in
         1)
-            mount_google_drive
+            local fm_path
+            fm_path=$(command -v fusermount 2>/dev/null)
+            if [ -z "$fm_path" ]; then
+                echo -e "${RED}fusermount bulunamadı, önce FUSE kurulmalı.${NC}"
+            else
+                # Önce kullanıcı PATH'ine dene
+                mkdir -p "$HOME/.local/bin"
+                ln -sf "$fm_path" "$HOME/.local/bin/fusermount3" 2>/dev/null && {
+                    echo -e "${GREEN}✅ $HOME/.local/bin/fusermount3 → $fm_path oluşturuldu${NC}"
+                    echo -e "${YELLOW}Not: PATH'e '$HOME/.local/bin' eklendiğinden emin olun.${NC}"
+                    echo -e "  export PATH=\"\$HOME/.local/bin:\$PATH\"  >> ~/.bashrc"
+                    export PATH="$HOME/.local/bin:$PATH"
+                    log "Created fusermount3 symlink in ~/.local/bin"
+                } || echo -e "${RED}Symlink oluşturulamadı.${NC}"
+
+                # /usr/local/bin'e de dene (sudo ile)
+                sudo ln -sf "$fm_path" /usr/local/bin/fusermount3 2>/dev/null && \
+                    echo -e "${GREEN}✅ /usr/local/bin/fusermount3 → $fm_path (sudo ile)${NC}"
+            fi
             ;;
         2)
-            mount_dropbox
+            if command -v apt-get &>/dev/null; then
+                sudo apt-get install -y fuse3 fuse
+            elif command -v dnf &>/dev/null; then
+                sudo dnf install -y fuse fuse3
+            elif command -v pacman &>/dev/null; then
+                sudo pacman -S --noconfirm fuse3
+            else
+                echo -e "${RED}Paket yöneticisi tespit edilemedi.${NC}"
+            fi
             ;;
         3)
-            echo "Çıkış yapılıyor / Exiting..."
-            exit 0
+            sudo modprobe fuse 2>/dev/null && \
+                echo -e "${GREEN}✅ fuse modülü yüklendi${NC}" || \
+                echo -e "${RED}❌ Modül yüklenemedi${NC}"
             ;;
-        *)
-            echo "Geçersiz seçim / Invalid choice. Lütfen tekrar deneyin / Please try again."
+        4)
+            echo -e "${YELLOW}Container ortamında /dev/fuse oluşturuluyor...${NC}"
+            sudo mknod -m 666 /dev/fuse c 10 229 2>/dev/null && \
+                echo -e "${GREEN}✅ /dev/fuse oluşturuldu${NC}" || \
+                echo -e "${RED}❌ /dev/fuse oluşturulamadı (--privileged gerekebilir)${NC}"
             ;;
+        0) return ;;
     esac
-    
-    echo "Mount işlemi tamamlandı. Ana menüye dönülüyor / Mount process completed. Returning to main menu..."
-    echo
-done
+
+    press_enter
+}
+
+# ============================================================
+# LOG GÖRÜNTÜLE / VIEW LOGS
+# ============================================================
+
+view_logs() {
+    print_banner
+    echo -e "${BOLD}📜 LOG DOSYASI / LOG FILE: $LOG_FILE${NC}"
+    print_separator
+    if [ -f "$LOG_FILE" ]; then
+        tail -50 "$LOG_FILE"
+    else
+        echo -e "${YELLOW}Log dosyası henüz oluşturulmamış / Log file not created yet.${NC}"
+    fi
+    press_enter
+}
+
+# ============================================================
+# SYSTEMD SERVİSİ OLUŞTUR / CREATE SYSTEMD SERVICE
+# ============================================================
+
+create_systemd_service() {
+    print_banner
+    echo -e "${MAGENTA}${BOLD}⚙️  SYSTEMD OTOMATİK BAŞLATMA / SYSTEMD AUTO-START${NC}"
+    print_separator
+
+    if ! command -v systemctl &> /dev/null; then
+        echo -e "${RED}systemd bu sistemde mevcut değil / systemd is not available on this system.${NC}"
+        press_enter
+        return
+    fi
+
+    local gdrive_accounts
+    mapfile -t gdrive_accounts < <(list_gdrive_accounts)
+    local dropbox_accounts
+    mapfile -t dropbox_accounts < <(list_dropbox_accounts)
+    local all_accounts=("${gdrive_accounts[@]}" "${dropbox_accounts[@]}")
+
+    if [ ${#all_accounts[@]} -eq 0 ]; then
+        echo -e "${YELLOW}Kayıtlı hesap yok / No registered accounts.${NC}"
+        press_enter
+        return
+    fi
+
+    echo -e "${CYAN}Aşağıdaki hesaplar için servis oluşturulacak:${NC}"
+    echo -e "${CYAN}Services will be created for:${NC}"
+    for remote in "${all_accounts[@]}"; do
+        echo -e "  ${BOLD}▸${NC} $remote"
+    done
+    echo ""
+
+    local SERVICE_DIR="$HOME/.config/systemd/user"
+    mkdir -p "$SERVICE_DIR"
+
+    local SCRIPT_PATH
+    SCRIPT_PATH=$(realpath "$0")
+
+    for remote in "${all_accounts[@]}"; do
+        local mount_point="$HOME/$remote"
+        local service_file="$SERVICE_DIR/rclone-${remote}.service"
+
+        cat > "$service_file" << EOF
+[Unit]
+Description=Rclone Mount - ${remote}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+ExecStartPre=/bin/mkdir -p ${mount_point}
+ExecStart=/usr/bin/rclone mount ${remote}: ${mount_point} \
+    --vfs-cache-mode writes \
+    --vfs-cache-max-age 24h \
+    --vfs-cache-max-size 1G \
+    --dir-cache-time 30m \
+    --poll-interval 30s \
+    --allow-non-empty \
+    --log-file ${LOG_FILE} \
+    --log-level INFO
+ExecStop=/bin/fusermount -u ${mount_point}
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+EOF
+
+        echo -e "${GREEN}✅ Servis oluşturuldu / Service created: $service_file${NC}"
+    done
+
+    echo ""
+    systemctl --user daemon-reload 2>/dev/null
+
+    read -p "$(echo -e "${YELLOW}Servisleri şimdi etkinleştirip başlatmak ister misiniz? / Enable and start services now? [Y/n]: ${NC}")" enable_now
+    if [[ ! "$enable_now" =~ ^[Nn]$ ]]; then
+        for remote in "${all_accounts[@]}"; do
+            systemctl --user enable "rclone-${remote}.service" 2>/dev/null && \
+                echo -e "${GREEN}  ✅ rclone-${remote} etkinleştirildi / enabled${NC}"
+            systemctl --user start "rclone-${remote}.service" 2>/dev/null && \
+                echo -e "${GREEN}  ✅ rclone-${remote} başlatıldı / started${NC}"
+        done
+    fi
+
+    echo ""
+    echo -e "${CYAN}Lingering etkinleştirmek için (kullanıcı logout olsa bile çalışsın):${NC}"
+    echo -e "${CYAN}To enable lingering (run even after user logout):${NC}"
+    echo -e "  ${BOLD}loginctl enable-linger \$USER${NC}"
+    echo ""
+    press_enter
+}
+
+# ============================================================
+# GOOGLE DRIVE MENÜSÜ / GOOGLE DRIVE MENU
+# ============================================================
+
+gdrive_menu() {
+    while true; do
+        print_banner
+        echo -e "${GREEN}${BOLD}📁 GOOGLE DRIVE MENÜSÜ / GOOGLE DRIVE MENU${NC}"
+        print_separator
+        echo ""
+
+        local accounts
+        mapfile -t accounts < <(list_gdrive_accounts)
+        echo -e "${CYAN}Kayıtlı hesap sayısı / Registered accounts: ${BOLD}${#accounts[@]}${NC}"
+        echo ""
+        echo -e "  ${BOLD}1)${NC} ${GREEN}Yeni hesap ekle / Add new account${NC}"
+        echo -e "  ${BOLD}2)${NC} ${GREEN}Belirli hesabı mount et / Mount specific account${NC}"
+        echo -e "  ${BOLD}3)${NC} ${GREEN}Tüm hesapları mount et / Mount all accounts${NC}"
+        echo -e "  ${BOLD}4)${NC} ${GREEN}Hesapları listele / List accounts${NC}"
+        echo -e "  ${BOLD}0)${NC} ${YELLOW}Ana menü / Main menu${NC}"
+        echo ""
+        print_separator
+        read -p "$(echo -e "${YELLOW}Seçiminiz / Your choice: ${NC}")" choice
+
+        case "$choice" in
+            1) add_gdrive_account; press_enter ;;
+            2) select_and_mount_gdrive ;;
+            3) mount_all_gdrive ;;
+            4) list_all_accounts ;;
+            0) break ;;
+            *) echo -e "${RED}Geçersiz seçim / Invalid choice${NC}"; sleep 1 ;;
+        esac
+    done
+}
+
+# ============================================================
+# DROPBOX MENÜSÜ / DROPBOX MENU
+# ============================================================
+
+dropbox_menu() {
+    while true; do
+        print_banner
+        echo -e "${CYAN}${BOLD}📦 DROPBOX MENÜSÜ / DROPBOX MENU${NC}"
+        print_separator
+        echo ""
+
+        local accounts
+        mapfile -t accounts < <(list_dropbox_accounts)
+        echo -e "${CYAN}Kayıtlı hesap sayısı / Registered accounts: ${BOLD}${#accounts[@]}${NC}"
+        echo ""
+        echo -e "  ${BOLD}1)${NC} ${CYAN}Yeni hesap ekle / Add new account${NC}"
+        echo -e "  ${BOLD}2)${NC} ${CYAN}Belirli hesabı mount et / Mount specific account${NC}"
+        echo -e "  ${BOLD}3)${NC} ${CYAN}Tüm hesapları mount et / Mount all accounts${NC}"
+        echo -e "  ${BOLD}4)${NC} ${CYAN}Hesapları listele / List accounts${NC}"
+        echo -e "  ${BOLD}0)${NC} ${YELLOW}Ana menü / Main menu${NC}"
+        echo ""
+        print_separator
+        read -p "$(echo -e "${YELLOW}Seçiminiz / Your choice: ${NC}")" choice
+
+        case "$choice" in
+            1) add_dropbox_account; press_enter ;;
+            2) select_and_mount_dropbox ;;
+            3) mount_all_dropbox ;;
+            4) list_all_accounts ;;
+            0) break ;;
+            *) echo -e "${RED}Geçersiz seçim / Invalid choice${NC}"; sleep 1 ;;
+        esac
+    done
+}
+
+# ============================================================
+# ANA MENÜ / MAIN MENU
+# ============================================================
+
+main_menu() {
+    while true; do
+        print_banner
+
+        # Hızlı durum özeti / Quick status summary
+        local gdrive_count
+        gdrive_count=$(list_gdrive_accounts | wc -l)
+        local dropbox_count
+        dropbox_count=$(list_dropbox_accounts | wc -l)
+        local mounted_count
+        mounted_count=$(mount | grep -c "rclone" 2>/dev/null || echo 0)
+
+        echo -e "  ${GREEN}📁 Google Drive:${NC} ${gdrive_count} hesap  |  ${CYAN}📦 Dropbox:${NC} ${dropbox_count} hesap  |  ${MAGENTA}✅ Aktif mount:${NC} ${mounted_count}"
+        echo ""
+        print_separator
+        echo ""
+        echo -e "  ${BOLD}1)${NC} ${GREEN}📁 Google Drive işlemleri / Google Drive operations${NC}"
+        echo -e "  ${BOLD}2)${NC} ${CYAN}📦 Dropbox işlemleri / Dropbox operations${NC}"
+        echo -e "  ${BOLD}3)${NC} ${MAGENTA}🚀 Tüm hesapları mount et / Mount all accounts${NC}"
+        echo -e "  ${BOLD}4)${NC} ${YELLOW}⏏  Unmount işlemleri / Unmount operations${NC}"
+        echo -e "  ${BOLD}5)${NC} ${BOLD}📊 Mount durumu / Mount status${NC}"
+        echo -e "  ${BOLD}6)${NC} ${BOLD}📋 Tüm hesapları listele / List all accounts${NC}"
+        echo -e "  ${BOLD}7)${NC} ${RED}🗑️  Hesap sil / Delete account${NC}"
+        echo -e "  ${BOLD}8)${NC} ${MAGENTA}⚙️  Systemd servisi oluştur / Create systemd service${NC}"
+        echo -e "  ${BOLD}9)${NC} ${BOLD}📜 Logları görüntüle / View logs${NC}"
+        echo -e "  ${BOLD}F)${NC} ${MAGENTA}🔍 FUSE tanı & düzelt / FUSE diagnostics & fix${NC}"
+        echo -e "  ${BOLD}0)${NC} ${RED}🚪 Çıkış / Exit${NC}"
+        echo ""
+        print_separator
+        read -p "$(echo -e "${YELLOW}Seçiminiz / Your choice: ${NC}")" choice
+
+        case "$choice" in
+            1) gdrive_menu ;;
+            2) dropbox_menu ;;
+            3) mount_all ;;
+            4) unmount_menu ;;
+            5) show_mount_status; press_enter ;;
+            6) list_all_accounts ;;
+            7) delete_account_menu ;;
+            8) create_systemd_service ;;
+            9) view_logs ;;
+            [Ff]) fuse_diagnostics ;;
+            0)
+                echo ""
+                echo -e "${RED}${BOLD}Çıkış yapılıyor / Exiting...${NC}"
+                echo -e "${YELLOW}Not: Mount edilmiş sürücüler arka planda çalışmaya devam eder.${NC}"
+                echo -e "${YELLOW}Note: Mounted drives will continue running in the background.${NC}"
+                echo ""
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}Geçersiz seçim / Invalid choice. Lütfen tekrar deneyin / Please try again.${NC}"
+                sleep 1
+                ;;
+        esac
+    done
+}
+
+# ============================================================
+# BAŞLANGIÇ / STARTUP
+# ============================================================
+
+check_rclone
+check_fuse_and_fix
+
+# ~/.local/bin PATH'de yoksa ekle (fusermount3 symlink için)
+if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+
+# Başlangıçta fusermount3 hâlâ yoksa ve fusermount varsa → otomatik symlink
+if ! command -v fusermount3 &>/dev/null && command -v fusermount &>/dev/null; then
+    mkdir -p "$HOME/.local/bin"
+    ln -sf "$(command -v fusermount)" "$HOME/.local/bin/fusermount3" 2>/dev/null
+    log "Auto-symlink: fusermount3 → $(command -v fusermount)"
+fi
+
+# Log dosyasını başlat
+touch "$LOG_FILE"
+log "=== Rclone Mount Manager started ==="
+log "PATH: $PATH"
+log "fusermount3: $(command -v fusermount3 2>/dev/null || echo 'NOT FOUND')"
+log "fusermount : $(command -v fusermount  2>/dev/null || echo 'NOT FOUND')"
+
+# Ana menüyü başlat
+main_menu
