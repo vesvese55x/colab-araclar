@@ -362,7 +362,6 @@ do_rclone_mount() {
         --dir-cache-time 30m
         --poll-interval 30s
         --allow-non-empty
-        --no-modtime
         --transfers 4
         --log-file "$LOG_FILE"
         --log-level INFO
